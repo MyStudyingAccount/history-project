@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /private/
+Disallow: /temp/
+
+Sitemap: https://www.history.com/sitemap.xml

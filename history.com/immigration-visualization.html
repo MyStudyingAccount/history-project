@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Immigration Origins Over Time</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #111;
+        --muted: #5a5a5a;
+        --panel: #f6f2ea;
+        --accent: #b33a2b;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Source Serif 4", "Times New Roman", serif;
+        color: var(--ink);
+        background: linear-gradient(180deg, #f3efe6 0%, #ffffff 48%, #f8f6f1 100%);
+      }
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 32px 20px 56px;
+      }
+      h1 {
+        font-size: 32px;
+        margin: 0 0 8px;
+        letter-spacing: 0.3px;
+      }
+      p {
+        margin: 0 0 18px;
+        color: var(--muted);
+        max-width: 720px;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid #e6ded0;
+        border-radius: 18px;
+        padding: 18px 18px 6px;
+        margin: 18px 0 28px;
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.08);
+      }
+      .panel h2 {
+        margin: 0 0 12px;
+        font-size: 20px;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        align-items: center;
+        margin-bottom: 10px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .controls label {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        cursor: pointer;
+      }
+      canvas {
+        width: 100%;
+        height: 380px;
+      }
+      .note {
+        font-size: 12px;
+        color: #6a6a6a;
+        margin-top: 10px;
+      }
+      @media (max-width: 720px) {
+        h1 { font-size: 26px; }
+        canvas { height: 320px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Origins Over Time</h1>
+      <p>Interactive view of lawful permanent residents by region. Toggle a region in the legend to focus on a single source.</p>
+
+      <section class="panel">
+        <h2>Region totals by period</h2>
+        <div class="controls">
+          <label><input id="stackedToggle" type="checkbox" checked> Stacked area</label>
+          <label><input id="showNotSpecified" type="checkbox"> Show Not Specified</label>
+        </div>
+        <canvas id="regionChart" aria-label="Region totals chart"></canvas>
+        <div class="note">Source: U.S. Department of Homeland Security.</div>
+      </section>
+
+      <section class="panel">
+        <h2>Overall total by year</h2>
+        <canvas id="totalChart" aria-label="Total annual chart"></canvas>
+        <div class="note">Source: U.S. Department of Homeland Security.</div>
+      </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+      const periodLabels = [
+        "1820 to 1829", "1830 to 1839", "1840 to 1849", "1850 to 1859",
+        "1860 to 1869", "1870 to 1879", "1880 to 1889", "1890 to 1899",
+        "1900 to 1909", "1910 to 1919", "1920 to 1929", "1930 to 1939",
+        "1940 to 1949", "1950 to 1959", "1960 to 1969", "1970 to 1979",
+        "1980 to 1989", "1990 to 1999", "2000 to 2009", "2010",
+        "2011", "2012", "2013", "2014", "2015"
+      ];
+
+      const regionSeries = {
+        "Europe": [99618, 422853, 1369423, 2622617, 1880389, 2252050, 4638684, 3576411, 7572569, 4985411, 2560340, 444404, 472524, 1404973, 1133443, 826327, 669694, 1349219, 1349609, 95429, 90712, 86956, 91095, 87790, 90789],
+        "Asia": [34, 55, 121, 36080, 54408, 134071, 71152, 61304, 300441, 269736, 126740, 19292, 34532, 135844, 358563, 1406526, 2391356, 2859899, 3470835, 410209, 438580, 416488, 389301, 419382, 405854],
+        "America": [9656, 31911, 50527, 84201, 130427, 345889, 529845, 38756, 277882, 1070539, 1591278, 230319, 328435, 921644, 1674185, 1903636, 2694504, 5137142, 4441529, 426981, 423277, 409664, 399380, 400102, 439228],
+        "Africa": [19, 66, 67, 104, 458, 441, 768, 432, 6326, 8867, 6362, 2120, 6720, 13016, 23780, 71405, 141987, 346410, 759734, 98246, 97429, 103685, 94589, 94834, 98677],
+        "Oceania": [2, 1, 3, 110, 107, 9094, 7341, 3279, 11677, 12339, 9860, 3240, 14262, 11319, 23659, 39983, 41432, 56800, 65793, 5946, 5825, 5573, 6061, 5980, 6227],
+        "Not Specified": [19173, 83495, 7196, 71442, 15472, 592, 778, 14112, 33493, 488, 930, null, 135, 12472, 119, 326, 305406, 25928, 211930, 5814, 6217, 9265, 10127, 8430, 10256]
+      };
+
+      const regionColors = {
+        "Europe": "#b33a2b",
+        "Asia": "#d69f2a",
+        "America": "#2f7d6b",
+        "Africa": "#4b63b3",
+        "Oceania": "#8b3fb0",
+        "Not Specified": "#6a6a6a"
+      };
+
+      const regionDatasets = Object.keys(regionSeries)
+        .filter((name) => name !== "Not Specified")
+        .map((name) => ({
+          label: name,
+          data: regionSeries[name],
+          borderColor: regionColors[name],
+          backgroundColor: regionColors[name] + "55",
+          fill: true,
+          tension: 0.2,
+          borderWidth: 2,
+          pointRadius: 2
+        }));
+
+      const regionChart = new Chart(document.getElementById("regionChart"), {
+        type: "line",
+        data: {
+          labels: periodLabels,
+          datasets: regionDatasets
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { position: "bottom" },
+            tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.formattedValue}` } }
+          },
+          scales: {
+            x: { grid: { display: false } },
+            y: { stacked: true, ticks: { callback: (v) => v.toLocaleString() } }
+          }
+        }
+      });
+
+      const totalCsv = `Year,Number,Year,Number,Year,Number,Year,Number,
+1820 ,"8,385 ",1870 ,"387,203 ",1920 ,"430,001 ",1970 ,"373,326 ",
+1821 ,"9,127 ",1871 ,"321,350 ",1921 ,"805,228 ",1971 ,"370,478 ",
+1822 ,"6,911 ",1872 ,"404,806 ",1922 ,"309,556 ",1972 ,"384,685 ",
+1823 ,"6,354 ",1873 ,"459,803 ",1923 ,"522,919 ",1973 ,"398,515 ",
+1824 ,"7,912 ",1874 ,"313,339 ",1924 ,"706,896 ",1974 ,"393,919 ",
+1825 ,"10,199 ",1875 ,"227,498 ",1925 ,"294,314 ",1975 ,"385,378 ",
+1826 ,"10,837 ",1876 ,"169,986 ",1926 ,"304,488 ",1976,"499,093 ",
+1827 ,"18,875 ",1877 ,"141,857 ",1927 ,"335,175 ",1977 ,"458,755 ",
+1828 ,"27,382 ",1878 ,"138,469 ",1928 ,"307,255 ",1978 ,"589,810 ",
+1829 ,"22,520 ",1879 ,"177,826 ",1929 ,"279,678 ",1979 ,"394,244 ",
+1830 ,"23,322 ",1880 ,"457,257 ",1930 ,"241,700 ",1980 ,"524,295 ",
+1831 ,"22,633 ",1881 ,"669,431 ",1931 ,"97,139 ",1981 ,"595,014 ",
+1832 ,"60,482 ",1882 ,"788,992 ",1932 ,"35,576 ",1982 ,"533,624 ",
+1833 ,"58,640 ",1883 ,"603,322 ",1933 ,"23,068 ",1983 ,"550,052 ",
+1834 ,"65,365 ",1884 ,"518,592 ",1934 ,"29,470 ",1984 ,"541,811 ",
+1835 ,"45,374 ",1885 ,"395,346 ",1935 ,"34,956 ",1985 ,"568,149 ",
+1836 ,"76,242 ",1886 ,"334,203 ",1936 ,"36,329 ",1986 ,"600,027 ",
+1837 ,"79,340 ",1887 ,"490,109 ",1937 ,"50,244 ",1987 ,"599,889 ",
+1838 ,"38,914 ",1888 ,"546,889 ",1938 ,"67,895 ",1988 ,"641,346 ",
+1839 ,"68,069 ",1889 ,"444,427 ",1939 ,"82,998 ",1989 ,"1,090,172 ",
+1840 ,"84,066 ",1890 ,"455,302 ",1940 ,"70,756 ",1990 ,"1,535,872 ",
+1841 ,"80,289 ",1891 ,"560,319 ",1941 ,"51,776 ",1991 ,"1,826,595 ",
+1842 ,"104,565 ",1892 ,"579,663 ",1942 ,"28,781 ",1992 ,"973,445 ",
+1843 ,"52,496 ",1893 ,"439,730 ",1943 ,"23,725 ",1993 ,"903,916 ",
+1844 ,"78,615 ",1894 ,"285,631 ",1944 ,"28,551 ",1994 ,"803,993 ",
+1845 ,"114,371 ",1895 ,"258,536 ",1945 ,"38,119 ",1995 ,"720,177 ",
+1846 ,"154,416 ",1896 ,"343,267 ",1946 ,"108,721 ",1996," 915,560 ",
+1847 ,"234,968 ",1897 ,"230,832 ",1947 ,"147,292 ",1997," 797,847 ",
+1848 ,"226,527 ",1898 ,"229,299 ",1948 ,"170,570 ",1998 ," 653,206 ",
+1849 ,"297,024 ",1899 ,"311,715 ",1949 ,"188,317 ",1999," 644,787 ",
+1850 ,"369,980 ",1900 ,"448,572 ",1950 ,"249,187 ",2000," 841,002 ",
+1851 ,"379,466 ",1901 ,"487,918 ",1951 ,"205,717 ",2001," 1,058,902 ",
+1852 ,"371,603 ",1902 ,"648,743 ",1952 ,"265,520 ",2002," 1,059,356 ",
+1853 ,"368,645 ",1903 ,"857,046 ",1953 ,"170,434 ",2003," 703,542 ",
+1854 ,"427,833 ",1904 ,"812,870 ",1954 ,"208,177 ",2004," 957,883 ",
+1855 ,"200,877 ",1905 ,"1,026,499 ",1955 ,"237,790 ",2005,"1,122,257",
+1856 ,"200,436 ",1906 ,"1,100,735 ",1956 ,"321,625 ",2006,"1,266,129",
+1857 ,"251,306 ",1907 ,"1,285,349 ",1957 ,"326,867 ",2007,"1,052,415",
+1858 ,"123,126 ",1908 ,"782,870 ",1958 ,"253,265 ",2008,"1,107,126",
+1859 ,"121,282 ",1909 ,"751,786 ",1959 ,"260,686 ",2009,"1,130,818",
+1860 ,"153,640 ",1910 ,"1,041,570 ",1960 ,"265,398 ",2010,"1,042,625",
+1861 ,"91,918 ",1911 ,"878,587 ",1961 ,"271,344 ",2011,"1,062,040",
+1862 ,"91,985 ",1912 ,"838,172 ",1962 ,"283,763 ",2012,"1,031,631",
+1863 ,"176,282 ",1913 ,"1,197,892 ",1963 ,"306,260 ",2013,"990,553",
+1864 ,"193,418 ",1914 ,"1,218,480 ",1964 ,"292,248 ",2014,"1,016,518",
+1865 ,"248,120 ",1915 ,"326,700 ",1965 ,"296,697 ",2015,"1,051,031",
+1866 ,"318,568 ",1916 ,"298,826 ",1966 ,"323,040 ",,,
+1867 ,"315,722 ",1917 ,"295,403 ",1967 ,"361,972 ",,,
+1868 ,"138,840 ",1918 ,"110,618 ",1968 ,"454,448 ",,,
+1869 ,"352,768 ",1919 ,"141,132 ",1969 ,"358,579 ",,,`;
+
+      const yearMatches = [...totalCsv.matchAll(/(\d{4})\s*,\s*\"?([\d, ]+)\"?/g)];
+      const annualYears = [];
+      const annualTotals = [];
+      for (const match of yearMatches) {
+        const year = Number(match[1]);
+        const value = Number(match[2].replace(/[^\d]/g, ""));
+        if (!Number.isNaN(year) && !Number.isNaN(value)) {
+          annualYears.push(year);
+          annualTotals.push(value);
+        }
+      }
+
+      const totalChart = new Chart(document.getElementById("totalChart"), {
+        type: "line",
+        data: {
+          labels: annualYears,
+          datasets: [{
+            label: "Total",
+            data: annualTotals,
+            borderColor: "#b33a2b",
+            backgroundColor: "#b33a2b33",
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: true,
+            tension: 0.2
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (ctx) => `Total: ${ctx.formattedValue}` } }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { maxTicksLimit: 12 }
+            },
+            y: { ticks: { callback: (v) => v.toLocaleString() } }
+          }
+        }
+      });
+
+      const stackedToggle = document.getElementById("stackedToggle");
+      const showNotSpecified = document.getElementById("showNotSpecified");
+
+      stackedToggle.addEventListener("change", () => {
+        const stacked = stackedToggle.checked;
+        regionChart.options.scales.y.stacked = stacked;
+        regionChart.data.datasets.forEach((ds) => { ds.fill = stacked; });
+        regionChart.update();
+      });
+
+      showNotSpecified.addEventListener("change", () => {
+        const existingIndex = regionChart.data.datasets.findIndex((ds) => ds.label === "Not Specified");
+        if (showNotSpecified.checked && existingIndex === -1) {
+          regionChart.data.datasets.push({
+            label: "Not Specified",
+            data: regionSeries["Not Specified"],
+            borderColor: regionColors["Not Specified"],
+            backgroundColor: regionColors["Not Specified"] + "55",
+            fill: regionChart.options.scales.y.stacked,
+            tension: 0.2,
+            borderWidth: 2,
+            pointRadius: 2
+          });
+        } else if (!showNotSpecified.checked && existingIndex !== -1) {
+          regionChart.data.datasets.splice(existingIndex, 1);
+        }
+        regionChart.update();
+      });
+    </script>
+  </body>
+</html>
